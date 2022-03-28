@@ -6,6 +6,7 @@ import (
     "log"
     "database/sql"
     _ "github.com/go-sql-driver/mysql"
+    "gopkg.in/redis.v3"
     "fmt"
     "time"
     "io/ioutil"
@@ -13,6 +14,7 @@ import (
     "strings"
     "errors"
     "github.com/gorilla/mux"
+    "strconv"
 )
 
 /*func main()  {
@@ -57,6 +59,11 @@ type  Auth struct {
     Pwd      string   `json:"password"`
 }
 
+type creatUrlShortnerType struct {
+    ResID    string `json:"id"`
+    ResUrl     string `json:"shortUrl":`
+}
+
 const (
 	UserName     string = "root"
 	Password     string = "12345"
@@ -73,6 +80,7 @@ const (
 }*/
 var (
 	MyDB         *sql.DB
+    RedisDB      *redis.Client
 )
 
 const (
@@ -122,16 +130,42 @@ func login1(writer http.ResponseWriter,  request *http.Request)  {
         fmt.Println(postData.Url)
 
         x, y := autoAdd(postData.Url, postData.ExpireAt)
-        z := x + y + "POST done"
-		fmt.Fprint(writer, z)
+        //z := x + y + "POST done"
+		//fmt.Fprint(writer, z)
+
+        res2D := &creatUrlShortnerType{
+            ResID:  x,
+            ResUrl: y,
+        }
+        res2B, _ := json.Marshal(res2D)
+        writer.Write(res2B)
+        //fmt.Println(string(res2B))
+
 	} else if request.Method == "GET"{
         vars := mux.Vars(request)
         id, ok := vars["id"]
         if !ok {
             fmt.Println("id is missing in parameters")
         }
-        fmt.Println(`id := `, id)
-        fmt.Fprint(writer, "GET done")
+        B, C := Decode(id)
+        if C != nil {
+            fmt.Fprint(writer, "Decode Fail")
+            return
+        }
+        fmt.Println("Decode(A)B:", B)
+
+        if getDataToRedis(strconv.FormatUint(B, 10)) != "Fail"{
+            fmt.Println("get from redis")
+            http.Redirect(writer, request, getDataToRedis(strconv.FormatUint(B, 10)), http.StatusSeeOther)
+        }else{
+            fmt.Println("get from mysql")
+            FullUrl := returnUrl(strconv.FormatUint(B, 10))
+            addDataToRedis(strconv.FormatUint(B, 10), FullUrl)
+            http.Redirect(writer, request, FullUrl, http.StatusSeeOther)
+        }
+        //fmt.Println(`id := `, id)
+        //fmt.Fprint(writer, "GET done:",FullUrl)
+
     }else {
 		http.Error(writer, "Invalid request method", http.StatusMethodNotAllowed)
 	}
@@ -151,6 +185,7 @@ func login2(writer http.ResponseWriter,  request *http.Request)  {
         result.Code = "200"
         result.Msg = "0Connect"
         DbConnectSQL()
+        DbConnectRedis()
     }else if username[0] == "admin" && pwd[0] == "1" {
         result.Code = "200"
         result.Msg = "1CreateTable"
@@ -159,10 +194,10 @@ func login2(writer http.ResponseWriter,  request *http.Request)  {
         result.Code = "200"
         result.Msg = "3ReadFullData"
         ReadFullData(pwd[0])
-    }else if username[0] == "admin" && pwd[0] == "4" {
+    }else if username[0] == "4" {
         result.Code = "200"
-        result.Msg = "4SHOW_TABLES"
-        SHOW_TABLES()
+        result.Msg = "4getDataToRedis"
+        getDataToRedis(pwd[0])
     }else {
         result.Code = "203"
         result.Msg = "賬戶名或密碼錯誤"
@@ -190,6 +225,35 @@ func DbConnectSQL(){
     MyDB.SetMaxOpenConns(MaxOpenConns)
     MyDB.SetMaxIdleConns(MaxIdleConns)
     //fmt.Println("connected to mysql")
+}
+
+func DbConnectRedis() {
+    fmt.Println("golang連接redis")
+    RedisDB = redis.NewClient(&redis.Options{
+        Addr: "redis:6379",
+        Password: "",
+        DB: 0,
+    })
+    pong, err := RedisDB.Ping().Result()
+    fmt.Println(pong, err)
+}
+
+func addDataToRedis(id string, url string) {
+    // 第三个参数是过期时间, 如果是0, 则表示没有过期时间. 这里设置过期时间.
+    err := RedisDB.Set(id, url, 6 * time.Second).Err()
+    if err != nil {
+        fmt.Println("add Data To Redis failed:", err)
+    }
+}
+
+func getDataToRedis(id string) (string) {
+    val, err := RedisDB.Get(id).Result()
+    if err != nil {
+        fmt.Println("get Data To Redis failed:", err)
+        return "Fail"
+    }
+    fmt.Println(id, ":get: ", val)
+    return val
 }
 
 /*func CreateTable() {
@@ -266,6 +330,20 @@ func ReadFullData(Num string) {
     fmt.Println("Decode(A)B:", B)
     fmt.Println("Decode(A)C:", C)
 	fmt.Println("fullData:%+v:", fullData)
+}
+
+func returnUrl(Num string) (string) {
+    var fullData FullData
+    //單筆資料
+	row := MyDB.QueryRow("select id,url,ExpireAt from urshoner where id=?", Num)
+    //Scan對應的欄位與select語法的欄位順序一致
+	if err := row.Scan(&fullData.ID, &fullData.Url, &fullData.ExpireAt); err != nil {
+		fmt.Printf("scan failed, err:%v\n", err)
+		return "Scan Failed"
+	}
+    fmt.Println("fullData.Url:", fullData.Url)
+    addDataToRedis(Num, fullData.Url)
+    return fullData.Url
 } 
 
 func SHOW_TABLES() {
