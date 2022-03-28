@@ -149,26 +149,49 @@ func login1(writer http.ResponseWriter,  request *http.Request)  {
         }
         B, C := Decode(id)
         if C != nil {
-            fmt.Fprint(writer, "Decode Fail")
-            return
-        }
-        fmt.Println("Decode(A)B:", B)
-
-        if getDataToRedis(strconv.FormatUint(B, 10)) != "Fail"{
-            fmt.Println("get from redis")
-            http.Redirect(writer, request, getDataToRedis(strconv.FormatUint(B, 10)), http.StatusSeeOther)
+            //fmt.Fprint(writer, "Decode Fail:", C)
+            fmt.Println("Decode Fail:", C)
+            //return
         }else{
-            fmt.Println("get from mysql")
-            FullUrl := returnUrl(strconv.FormatUint(B, 10))
-            addDataToRedis(strconv.FormatUint(B, 10), FullUrl)
-            http.Redirect(writer, request, FullUrl, http.StatusSeeOther)
+            fmt.Println("Decode(A)B:", B)
+
+            if getDataToRedis(strconv.FormatUint(B, 10)) != "Fail" {
+                fmt.Println("get from redis")
+                http.Redirect(writer, request, getDataToRedis(strconv.FormatUint(B, 10)), http.StatusSeeOther)
+            }else{
+                fmt.Println("get from mysql")
+                FullUrl := returnUrl(strconv.FormatUint(B, 10))
+                fmt.Println(FullUrl)
+                if FullUrl == "overDue" {
+                    addDataToRedis(strconv.FormatUint(B, 10), "http://localhost/NotFound/")
+                    fmt.Println("overDue overDue overDue")
+                    http.Redirect(writer, request, "http://localhost/NotFound/", http.StatusSeeOther)
+                }else if FullUrl == "Scan Failed" {
+                    addDataToRedis(strconv.FormatUint(B, 10), "http://localhost/NotFound/")
+                    fmt.Println("Scan Failed Scan Failed Scan Failed")
+                    http.Redirect(writer, request, "http://localhost/NotFound/", http.StatusSeeOther)
+                }else{
+                    addDataToRedis(strconv.FormatUint(B, 10), FullUrl)
+                    http.Redirect(writer, request, FullUrl, http.StatusSeeOther)
+                }
+            }
         }
+        
         //fmt.Println(`id := `, id)
         //fmt.Fprint(writer, "GET done:",FullUrl)
 
     }else {
 		http.Error(writer, "Invalid request method", http.StatusMethodNotAllowed)
 	}
+}
+
+func NotFound(writer http.ResponseWriter,  request *http.Request)  {
+    var result  Resp
+    result.Code = "404"
+    result.Msg = "NotFound"
+    if err := json.NewEncoder(writer).Encode(result); err != nil {
+        log.Fatal(err)
+    }
 }
 
 //接收x-www-form-urlencoded類型的post請求或者普通get請求
@@ -240,6 +263,7 @@ func DbConnectRedis() {
 
 func addDataToRedis(id string, url string) {
     // 第三个参数是过期时间, 如果是0, 则表示没有过期时间. 这里设置过期时间.
+    fmt.Println("addDataToRedis")
     err := RedisDB.Set(id, url, 6 * time.Second).Err()
     if err != nil {
         fmt.Println("add Data To Redis failed:", err)
@@ -333,6 +357,7 @@ func ReadFullData(Num string) {
 }
 
 func returnUrl(Num string) (string) {
+    fmt.Println("returnUrl")
     var fullData FullData
     //單筆資料
 	row := MyDB.QueryRow("select id,url,ExpireAt from urshoner where id=?", Num)
@@ -342,8 +367,39 @@ func returnUrl(Num string) (string) {
 		return "Scan Failed"
 	}
     fmt.Println("fullData.Url:", fullData.Url)
-    addDataToRedis(Num, fullData.Url)
-    return fullData.Url
+
+    //local_location, err := time.LoadLocation("Asia/Taipei")
+    /*if err != nil {
+        fmt.Println(err)
+    }*/
+    NowTimeStr := time.Now().In(time.FixedZone("CST", 8*3600)).Format("2006-01-02 15:04:05") //.In(local_location)
+    //NowTime, _ := time.Parse("2006-01-02 15:04:05", time.Now().In(local_location))
+    //NowTime := time.Now().In(time.FixedZone("CST", 8*3600))
+    NowTime := time.Now().Unix()
+    
+    /*str_array := strings.Split(fullData.ExpireAt, "UTC")
+    var year, mon, day, hh, mm, ss int
+    fmt.Sscanf(str_array[0], "%d-%d-%d %d:%d:%d ", &year, &mon, &day, &hh, &mm, &ss)
+    time_string_to_parse := fmt.Sprintf("%d-%02d-%02dT%02d:%02d:%02d+00:00", year, mon, day, hh, mm, ss)*/
+    //NowTime, _ := time.Parse("2006-01-02 15:04:05", NowTimeStr)
+    url_create_time, _ := time.Parse("2006-01-02 15:04:05", fullData.ExpireAt)
+    Url_ExTime := url_create_time.Unix()
+    fmt.Println(NowTimeStr,"NOOOOOW",NowTime,"WWTTTIII",fullData.ExpireAt,"EEEXXX",Url_ExTime,"XTTTT")
+    
+    /*if err == nil && NowTime.Before(url_create_time) {
+        //处理逻辑
+        fmt.Println("true")
+    }*/
+
+    //if time.Since(url_create_time) < 0{
+    if (Url_ExTime-NowTime) > 28800 {
+        fmt.Println("return fullData.Url",Url_ExTime-NowTime)
+        return fullData.Url
+    }else{
+        Re := fullData.ExpireAt + ":==:" + NowTimeStr + "overDue"
+        fmt.Println(Re)
+        return "overDue"
+    }
 } 
 
 func SHOW_TABLES() {
