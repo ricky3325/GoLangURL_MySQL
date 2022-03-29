@@ -4,11 +4,11 @@
 docker-compose up -d
 ```
 ### 第一次使用
-連接資料庫: <http://localhost/myproject?username=admin&password=0>
+連接資料庫: <http://localhost/myproject?username=admin&password=0>  
 建立資料表：<http://localhost/myproject?username=admin&password=1>
 
 ### 每次開啟
-連接資料庫:<http://localhost/myproject?username=admin&password=0>
+連接資料庫:<http://localhost/myproject?username=admin&password=0>  
 **RUN Unit Tests**
 ```
 docker exec -it myproject /bin/sh
