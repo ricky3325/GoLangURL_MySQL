@@ -68,7 +68,6 @@ The response body is a JSON object type.
 
 
 **Response body**
-The response body is a JSON object type.
 
 | 狀態 |動作|
 | ------------- | ------------------------------ |
