@@ -1,13 +1,13 @@
 # URL Shortener
-###啟動服務
+### 啟動服務
 ```
 docker-compose up -d
 ```
-###第一次使用
-連接資料庫:<http://localhost/myproject?username=admin&password=0>
+### 第一次使用
+連接資料庫: <http://localhost/myproject?username=admin&password=0>
 建立資料表：<http://localhost/myproject?username=admin&password=1>
 
-###每次開啟
+### 每次開啟
 連接資料庫:<http://localhost/myproject?username=admin&password=0>
 **RUN Unit Tests**
 ```
@@ -15,10 +15,10 @@ docker exec -it myproject /bin/sh
 go test -v
 ```
 
-###API 操作
+### API 操作
 
 ----
-#####POST http://localhost/login1
+##### POST http://localhost/login1
 
 **Request methods**
 
@@ -51,7 +51,7 @@ The response body is a JSON object type.
 
 ----
 
-#####GET http://localhost/login1/{id}
+##### GET http://localhost/login1/{id}
 
 **Request methods**
 
