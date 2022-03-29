@@ -353,7 +353,7 @@ func ReadFullData(Num string) {
     B, C := Decode(A)
     fmt.Println("Decode(A)B:", B)
     fmt.Println("Decode(A)C:", C)
-	fmt.Println("fullData:%+v:", fullData)
+	//fmt.Println("fullData:%+v:", fullData)
 }
 
 func returnUrl(Num string) (string) {
